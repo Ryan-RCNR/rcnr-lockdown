@@ -1,0 +1,44 @@
+{
+  "name": "@rcnr/lockdown",
+  "version": "1.0.0",
+  "description": "Shared fullscreen lockdown hook for RCNR student frontends",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0"
+  },
+  "keywords": [
+    "rcnr",
+    "lockdown",
+    "fullscreen",
+    "react",
+    "hook"
+  ],
+  "author": "Ryan-RCNR",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ryan-RCNR/rcnr-lockdown.git"
+  }
+}
