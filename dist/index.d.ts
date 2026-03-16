@@ -4,7 +4,7 @@ interface Violation {
     timestamp: number;
 }
 /** All violation types the lockdown hook can detect. */
-type ViolationType = "fullscreen_exit" | "tab_switch" | "window_blur" | "paste_attempt" | "copy_attempt" | "cut_attempt" | "drop_attempt" | "devtools_attempt";
+type ViolationType = "fullscreen_exit" | "tab_switch" | "window_blur" | "paste_attempt" | "copy_attempt" | "cut_attempt" | "drop_attempt" | "devtools_attempt" | "extension_detected";
 /** Violations that trigger instant auto-submit (cheating attempts). */
 declare const INSTANT_SUBMIT_VIOLATIONS: Set<ViolationType>;
 /** Configuration for the lockdown hook. */

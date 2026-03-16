@@ -7,7 +7,8 @@ var INSTANT_SUBMIT_VIOLATIONS = /* @__PURE__ */ new Set([
   "copy_attempt",
   "cut_attempt",
   "drop_attempt",
-  "devtools_attempt"
+  "devtools_attempt",
+  "extension_detected"
 ]);
 
 // src/useLockdown.ts
@@ -286,6 +287,104 @@ function useLockdown({
       document.removeEventListener("contextmenu", handleContextMenu);
     };
   }, [enabled, addViolation, startCountdown, clearCountdown]);
+  useEffect(() => {
+    if (!enabled) return;
+    const EXTENSION_SIGNATURES = [
+      "grammarly",
+      "schoolai",
+      "quillbot",
+      "languagetool",
+      "ginger",
+      "writefull",
+      "wordtune",
+      "prowritingaid",
+      "hemingway",
+      "copyleaks",
+      "jenni",
+      "jasper",
+      "textblaze",
+      "compose-ai",
+      "hyperwrite",
+      "otter-ai",
+      "fireflies"
+    ];
+    function isExtensionElement(el) {
+      if (el.tagName === "IFRAME") {
+        const src = el.getAttribute("src") || "";
+        if (/^(chrome|moz)-extension:\/\//i.test(src)) return true;
+        if (!src || src.startsWith("blob:")) {
+          const id2 = el.id?.toLowerCase() || "";
+          const cls2 = typeof el.className === "string" ? el.className.toLowerCase() : "";
+          if (EXTENSION_SIGNATURES.some(
+            (sig) => id2.includes(sig) || cls2.includes(sig)
+          )) {
+            return true;
+          }
+        }
+      }
+      if (el.shadowRoot && !el.hasAttribute("data-rcnr")) {
+        return true;
+      }
+      const id = el.id?.toLowerCase() || "";
+      const cls = typeof el.className === "string" ? el.className.toLowerCase() : "";
+      for (const attr of el.getAttributeNames?.() || []) {
+        const attrLower = attr.toLowerCase();
+        if (EXTENSION_SIGNATURES.some((sig) => attrLower.includes(sig))) {
+          return true;
+        }
+      }
+      if (EXTENSION_SIGNATURES.some(
+        (sig) => id.includes(sig) || cls.includes(sig)
+      )) {
+        return true;
+      }
+      if (el.parentElement === document.body && !el.hasAttribute("data-rcnr")) {
+        const tag = el.tagName?.toLowerCase() || "";
+        if (tag === "div" || tag === "section" || tag === "aside") {
+          const style = window.getComputedStyle(el);
+          if ((style.position === "fixed" || style.position === "absolute") && parseInt(style.width, 10) > 200) {
+            const html = el.innerHTML?.toLowerCase() || "";
+            if (/chrome-extension:|moz-extension:/i.test(html)) {
+              return true;
+            }
+          }
+        }
+      }
+      return false;
+    }
+    const observer = new MutationObserver((mutations) => {
+      if (!hasEnteredFullscreenRef.current) return;
+      if (graceRef.current) return;
+      if (autoSubmittedRef.current) return;
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node.nodeType !== Node.ELEMENT_NODE) continue;
+          if (isExtensionElement(node)) {
+            addViolation("extension_detected");
+            return;
+          }
+        }
+      }
+    });
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
+    const scanTimer = requestAnimationFrame(() => {
+      if (!hasEnteredFullscreenRef.current) return;
+      const allElements = document.querySelectorAll("*");
+      for (const el of allElements) {
+        if (isExtensionElement(el)) {
+          addViolation("extension_detected");
+          break;
+        }
+      }
+    });
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(scanTimer);
+    };
+  }, [enabled, addViolation]);
   useEffect(() => {
     if (!enabled) return;
     const interval = setInterval(() => {

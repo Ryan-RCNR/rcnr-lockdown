@@ -424,6 +424,141 @@ export function useLockdown({
     };
   }, [enabled, addViolation, startCountdown, clearCountdown]);
 
+  // --- Extension / sidebar detection ---
+  // Browser extensions (SchoolAI, Grammarly, etc.) inject elements into the DOM:
+  // iframes, shadow DOM hosts, or divs with extension-specific attributes.
+  // A MutationObserver watches for these injections and flags them immediately.
+  useEffect(() => {
+    if (!enabled) return;
+
+    // Known extension identifiers — class prefixes, data attributes, IDs
+    const EXTENSION_SIGNATURES = [
+      "grammarly",
+      "schoolai",
+      "quillbot",
+      "languagetool",
+      "ginger",
+      "writefull",
+      "wordtune",
+      "prowritingaid",
+      "hemingway",
+      "copyleaks",
+      "jenni",
+      "jasper",
+      "textblaze",
+      "compose-ai",
+      "hyperwrite",
+      "otter-ai",
+      "fireflies",
+    ];
+
+    /** Check if an element looks like it was injected by a browser extension. */
+    function isExtensionElement(el: Element): boolean {
+      // Iframes with extension origins
+      if (el.tagName === "IFRAME") {
+        const src = el.getAttribute("src") || "";
+        // chrome-extension:// or moz-extension:// protocol
+        if (/^(chrome|moz)-extension:\/\//i.test(src)) return true;
+        // Extension iframes often have no src or blob: src — check identifiers
+        if (!src || src.startsWith("blob:")) {
+          const id = el.id?.toLowerCase() || "";
+          const cls =
+            typeof el.className === "string" ? el.className.toLowerCase() : "";
+          if (
+            EXTENSION_SIGNATURES.some(
+              (sig) => id.includes(sig) || cls.includes(sig),
+            )
+          ) {
+            return true;
+          }
+        }
+      }
+
+      // Elements with shadow roots (extensions use these to isolate their UI)
+      if (el.shadowRoot && !el.hasAttribute("data-rcnr")) {
+        return true;
+      }
+
+      const id = el.id?.toLowerCase() || "";
+      const cls =
+        typeof el.className === "string" ? el.className.toLowerCase() : "";
+
+      // data-grammarly, data-schoolai, etc. in attribute names
+      for (const attr of el.getAttributeNames?.() || []) {
+        const attrLower = attr.toLowerCase();
+        if (EXTENSION_SIGNATURES.some((sig) => attrLower.includes(sig))) {
+          return true;
+        }
+      }
+
+      // Class or ID containing known extension names
+      if (
+        EXTENSION_SIGNATURES.some(
+          (sig) => id.includes(sig) || cls.includes(sig),
+        )
+      ) {
+        return true;
+      }
+
+      // Fixed/absolute positioned panels injected at body level with extension resources
+      if (el.parentElement === document.body && !el.hasAttribute("data-rcnr")) {
+        const tag = el.tagName?.toLowerCase() || "";
+        if (tag === "div" || tag === "section" || tag === "aside") {
+          const style = window.getComputedStyle(el);
+          if (
+            (style.position === "fixed" || style.position === "absolute") &&
+            parseInt(style.width, 10) > 200
+          ) {
+            const html = el.innerHTML?.toLowerCase() || "";
+            if (/chrome-extension:|moz-extension:/i.test(html)) {
+              return true;
+            }
+          }
+        }
+      }
+
+      return false;
+    }
+
+    const observer = new MutationObserver((mutations) => {
+      if (!hasEnteredFullscreenRef.current) return;
+      if (graceRef.current) return;
+      if (autoSubmittedRef.current) return;
+
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node.nodeType !== Node.ELEMENT_NODE) continue;
+          if (isExtensionElement(node as Element)) {
+            addViolation("extension_detected");
+            return; // One detection is enough
+          }
+        }
+      }
+    });
+
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+
+    // Initial scan after fullscreen entry for extensions that loaded before lockdown
+    const scanTimer = requestAnimationFrame(() => {
+      if (!hasEnteredFullscreenRef.current) return;
+      const allElements = document.querySelectorAll("*");
+      for (const el of allElements) {
+        if (isExtensionElement(el)) {
+          addViolation("extension_detected");
+          break;
+        }
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(scanTimer);
+    };
+  }, [enabled, addViolation]);
+
   // --- Focus polling heartbeat ---
   // The nuclear option: check every 500ms whether the window still has focus.
   // This catches EVERYTHING that browser events miss — Windows key overlays,
