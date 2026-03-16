@@ -147,15 +147,17 @@ function useLockdown({
             "Final warning: leave this window again and your work will be auto-submitted."
           );
           setTimeout(() => setWarning(null), WARNING_DISPLAY_MS);
+          startCountdown();
         } else {
           setWarning(
             `Warning: you left the writing window. You have ${remaining} chance${remaining > 1 ? "s" : ""} left.`
           );
           setTimeout(() => setWarning(null), WARNING_DISPLAY_MS);
+          startCountdown();
         }
       }
     },
-    [triggerAutoSubmit]
+    [triggerAutoSubmit, startCountdown]
   );
   const enterFullscreen = (0, import_react.useCallback)(async () => {
     try {
@@ -198,9 +200,6 @@ function useLockdown({
       } else if (!graceRef.current && hasEnteredFullscreenRef.current) {
         lastFsExitRef.current = Date.now();
         addViolation("fullscreen_exit");
-        if (fullscreenExitCountRef.current <= MAX_FULLSCREEN_EXITS) {
-          startCountdown();
-        }
       }
     }
     function handleVisibilityChange() {
@@ -280,9 +279,15 @@ function useLockdown({
     function handleContextMenu(e) {
       e.preventDefault();
     }
+    function handleFocus() {
+      if (countdownIntervalRef.current) {
+        clearCountdown();
+      }
+    }
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
     document.addEventListener("paste", handlePaste);
     document.addEventListener("copy", handleCopy);
     document.addEventListener("cut", handleCut);
@@ -296,6 +301,7 @@ function useLockdown({
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
       document.removeEventListener("paste", handlePaste);
       document.removeEventListener("copy", handleCopy);
       document.removeEventListener("cut", handleCut);

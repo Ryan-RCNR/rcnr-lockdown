@@ -192,15 +192,19 @@ export function useLockdown({
             "Final warning: leave this window again and your work will be auto-submitted.",
           );
           setTimeout(() => setWarning(null), WARNING_DISPLAY_MS);
+          // Start countdown so the overlay is visible when they come back
+          startCountdown();
         } else {
           setWarning(
             `Warning: you left the writing window. You have ${remaining} chance${remaining > 1 ? "s" : ""} left.`,
           );
           setTimeout(() => setWarning(null), WARNING_DISPLAY_MS);
+          // Start countdown so the overlay is visible when they come back
+          startCountdown();
         }
       }
     },
-    [triggerAutoSubmit],
+    [triggerAutoSubmit, startCountdown],
   );
 
   // Enter fullscreen — stable callback
@@ -256,10 +260,7 @@ export function useLockdown({
       } else if (!graceRef.current && hasEnteredFullscreenRef.current) {
         lastFsExitRef.current = Date.now();
         addViolation("fullscreen_exit");
-        // Start countdown if they still have strikes remaining
-        if (fullscreenExitCountRef.current <= MAX_FULLSCREEN_EXITS) {
-          startCountdown();
-        }
+        // Countdown is now started inside addViolation for all strike types
       }
     }
 
@@ -383,9 +384,19 @@ export function useLockdown({
       e.preventDefault();
     }
 
+    // When the window regains focus, clear any active countdown.
+    // This handles Win key / Alt+Tab where fullscreen was never exited —
+    // the student came back, so stop the countdown timer.
+    function handleFocus() {
+      if (countdownIntervalRef.current) {
+        clearCountdown();
+      }
+    }
+
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
     document.addEventListener("paste", handlePaste);
     document.addEventListener("copy", handleCopy);
     document.addEventListener("cut", handleCut);
@@ -400,6 +411,7 @@ export function useLockdown({
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
       document.removeEventListener("paste", handlePaste);
       document.removeEventListener("copy", handleCopy);
       document.removeEventListener("cut", handleCut);
