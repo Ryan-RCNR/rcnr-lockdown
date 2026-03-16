@@ -6,18 +6,22 @@
  * INSTANT SUBMIT (cheating attempts — never accidental):
  *   copy, cut, paste, external drop, devtools shortcuts
  *
- * 2-STRIKE LIMIT (environmental — fullscreen exits only):
- *   Each fullscreen exit starts a 5-second wall-clock countdown to re-enter.
- *   Blur/visibility events during an active countdown are suppressed
- *   (they're a side-effect of being outside fullscreen, not separate offenses).
- *   After the 2nd fullscreen exit, the next exit (or countdown expiry)
- *   triggers instant auto-submit.
+ * 2-STRIKE LIMIT (any focus loss):
+ *   fullscreen_exit, window_blur (Alt+Tab, Win key, Ctrl+N), tab_switch
+ *   ALL burn a strike. After 2 strikes, the next violation auto-submits.
+ *   Fullscreen exits start a 5-second wall-clock countdown to re-enter.
+ *
+ * FOCUS POLLING HEARTBEAT (500ms):
+ *   document.hasFocus() is checked every 500ms as a safety net.
+ *   This catches OS-level actions (Win key, Alt+Tab, notifications)
+ *   that don't reliably fire browser blur/visibility events on Windows.
  *
  * The countdown uses wall-clock timestamps (Date.now()) so freezing
  * JS execution (e.g. via browser task manager) cannot buy extra time.
  *
  * Also blocked (no violation, just prevented):
- *   view source (Ctrl/Cmd+U), print (Ctrl/Cmd+P), context menu (right-click)
+ *   view source (Ctrl/Cmd+U), print (Ctrl/Cmd+P), context menu (right-click),
+ *   Ctrl/Cmd+N (new window), Alt+Tab, Meta/Win key
  *
  * Philosophy: brutally simple. Not Proctorio. Just honest guardrails.
  * If a student makes an honest mistake, the teacher can reset their access.
@@ -41,6 +45,13 @@ const BLUR_SUPPRESS_AFTER_FS_EXIT_MS = 500;
 const FULLSCREEN_REENTRY_SECONDS = 5;
 /** Maximum fullscreen exits before auto-submit. */
 const MAX_FULLSCREEN_EXITS = 2;
+/** How often (ms) to poll document.hasFocus() as a safety net. */
+const FOCUS_POLL_INTERVAL_MS = 500;
+/**
+ * After detecting a focus loss via polling, suppress duplicate poll detections
+ * for this window (ms) so a single Alt+Tab doesn't fire 10 violations.
+ */
+const FOCUS_POLL_COOLDOWN_MS = 2000;
 
 /** Detect mobile/tablet devices that cannot support fullscreen lockdown. */
 function detectMobileDevice(): boolean {
@@ -86,6 +97,8 @@ export function useLockdown({
   const internalDragRef = useRef(false);
   /** Whether fullscreen has been entered at least once — no violations until then. */
   const hasEnteredFullscreenRef = useRef(false);
+  /** Timestamp of last focus-loss detection from polling — prevents rapid-fire duplicates. */
+  const lastFocusPollViolationRef = useRef(0);
 
   // Stable refs for callbacks so event handlers never capture stale versions.
   const onAutoSubmitRef = useRef(onAutoSubmit);
@@ -157,10 +170,15 @@ export function useLockdown({
         return;
       }
 
-      // Only fullscreen_exit counts as a strike.
-      // Blur/visibility events are logged but don't burn strikes —
-      // they're side-effects of being outside fullscreen.
-      if (type === "fullscreen_exit") {
+      // fullscreen_exit, window_blur, and tab_switch all burn strikes.
+      // Previously only fullscreen_exit counted — but Alt+Tab and Win key
+      // bypass fullscreen events entirely on Windows, so students could
+      // switch apps freely with zero consequences. Now any focus loss counts.
+      if (
+        type === "fullscreen_exit" ||
+        type === "window_blur" ||
+        type === "tab_switch"
+      ) {
         fullscreenExitCountRef.current += 1;
         const remaining = MAX_FULLSCREEN_EXITS - fullscreenExitCountRef.current;
         setStrikesRemaining(remaining);
@@ -171,12 +189,12 @@ export function useLockdown({
           triggerAutoSubmit();
         } else if (remaining === 0) {
           setWarning(
-            "Final warning: leave fullscreen again and your work will be auto-submitted.",
+            "Final warning: leave this window again and your work will be auto-submitted.",
           );
           setTimeout(() => setWarning(null), WARNING_DISPLAY_MS);
         } else {
           setWarning(
-            `Warning: you have ${remaining} chance${remaining > 1 ? "s" : ""} left to re-enter fullscreen.`,
+            `Warning: you left the writing window. You have ${remaining} chance${remaining > 1 ? "s" : ""} left.`,
           );
           setTimeout(() => setWarning(null), WARNING_DISPLAY_MS);
         }
@@ -258,11 +276,13 @@ export function useLockdown({
       }
     }
 
-    // Window blur (Alt+Tab, etc.)
-    // Suppressed briefly after fullscreen exit AND while countdown is active.
+    // Window blur (Alt+Tab, Win key, Ctrl+N, etc.)
+    // Only suppressed briefly after a fullscreen exit (to avoid double-counting
+    // the blur that naturally follows exiting fullscreen). NOT suppressed during
+    // countdown — if a student Alt+Tabs during their 5-second window, that's
+    // a real violation.
     function handleBlur() {
       if (graceRef.current) return;
-      if (countdownIntervalRef.current) return;
       if (Date.now() - lastFsExitRef.current < BLUR_SUPPRESS_AFTER_FS_EXIT_MS)
         return;
       addViolation("window_blur");
@@ -327,6 +347,12 @@ export function useLockdown({
         addViolation("devtools_attempt");
         return;
       }
+      // Ctrl/Cmd+N (new window) — block and record violation
+      if (modKey && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        addViolation("window_blur");
+        return;
+      }
       // Ctrl/Cmd+U (view source) — blocked silently, no violation
       if (modKey && e.key.toLowerCase() === "u") {
         e.preventDefault();
@@ -334,6 +360,19 @@ export function useLockdown({
       }
       // Ctrl/Cmd+P (print) — blocked silently, no violation
       if (modKey && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        return;
+      }
+      // Alt+Tab — can't fully prevent OS-level switch, but record the attempt.
+      // The actual app switch will also be caught by blur/focus polling.
+      if (e.altKey && e.key === "Tab") {
+        e.preventDefault();
+        return;
+      }
+      // Meta/Win key alone — can't prevent OS start menu, but if we see the
+      // keydown we can block default and log it. The actual focus loss is
+      // caught by blur handler + focus polling.
+      if (e.key === "Meta" || e.key === "OS") {
         e.preventDefault();
         return;
       }
@@ -372,6 +411,35 @@ export function useLockdown({
       document.removeEventListener("contextmenu", handleContextMenu);
     };
   }, [enabled, addViolation, startCountdown, clearCountdown]);
+
+  // --- Focus polling heartbeat ---
+  // The nuclear option: check every 500ms whether the window still has focus.
+  // This catches EVERYTHING that browser events miss — Windows key overlays,
+  // Alt+Tab on some browsers, OS-level notifications stealing focus, etc.
+  // Without this, the lockdown is trivially bypassable on Windows.
+  useEffect(() => {
+    if (!enabled) return;
+
+    const interval = setInterval(() => {
+      if (!hasEnteredFullscreenRef.current) return;
+      if (graceRef.current) return;
+      if (autoSubmittedRef.current) return;
+
+      if (!document.hasFocus()) {
+        const now = Date.now();
+        // Suppress if we already fired a focus-poll violation recently
+        if (now - lastFocusPollViolationRef.current < FOCUS_POLL_COOLDOWN_MS)
+          return;
+        // Suppress if this is immediately after a fullscreen exit (blur handler covers it)
+        if (now - lastFsExitRef.current < BLUR_SUPPRESS_AFTER_FS_EXIT_MS)
+          return;
+        lastFocusPollViolationRef.current = now;
+        addViolation("window_blur");
+      }
+    }, FOCUS_POLL_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [enabled, addViolation]);
 
   return {
     isFullscreen,

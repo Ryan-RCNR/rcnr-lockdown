@@ -17,6 +17,8 @@ var DEVTOOLS_KEYS = ["I", "J", "C", "K"];
 var BLUR_SUPPRESS_AFTER_FS_EXIT_MS = 500;
 var FULLSCREEN_REENTRY_SECONDS = 5;
 var MAX_FULLSCREEN_EXITS = 2;
+var FOCUS_POLL_INTERVAL_MS = 500;
+var FOCUS_POLL_COOLDOWN_MS = 2e3;
 function detectMobileDevice() {
   if (typeof navigator === "undefined") return false;
   const hasTouch = navigator.maxTouchPoints > 0;
@@ -51,6 +53,7 @@ function useLockdown({
   const autoSubmittedRef = useRef(false);
   const internalDragRef = useRef(false);
   const hasEnteredFullscreenRef = useRef(false);
+  const lastFocusPollViolationRef = useRef(0);
   const onAutoSubmitRef = useRef(onAutoSubmit);
   useEffect(() => {
     onAutoSubmitRef.current = onAutoSubmit;
@@ -105,7 +108,7 @@ function useLockdown({
         triggerAutoSubmit();
         return;
       }
-      if (type === "fullscreen_exit") {
+      if (type === "fullscreen_exit" || type === "window_blur" || type === "tab_switch") {
         fullscreenExitCountRef.current += 1;
         const remaining = MAX_FULLSCREEN_EXITS - fullscreenExitCountRef.current;
         setStrikesRemaining(remaining);
@@ -114,12 +117,12 @@ function useLockdown({
           triggerAutoSubmit();
         } else if (remaining === 0) {
           setWarning(
-            "Final warning: leave fullscreen again and your work will be auto-submitted."
+            "Final warning: leave this window again and your work will be auto-submitted."
           );
           setTimeout(() => setWarning(null), WARNING_DISPLAY_MS);
         } else {
           setWarning(
-            `Warning: you have ${remaining} chance${remaining > 1 ? "s" : ""} left to re-enter fullscreen.`
+            `Warning: you left the writing window. You have ${remaining} chance${remaining > 1 ? "s" : ""} left.`
           );
           setTimeout(() => setWarning(null), WARNING_DISPLAY_MS);
         }
@@ -180,7 +183,6 @@ function useLockdown({
     }
     function handleBlur() {
       if (graceRef.current) return;
-      if (countdownIntervalRef.current) return;
       if (Date.now() - lastFsExitRef.current < BLUR_SUPPRESS_AFTER_FS_EXIT_MS)
         return;
       addViolation("window_blur");
@@ -226,11 +228,24 @@ function useLockdown({
         addViolation("devtools_attempt");
         return;
       }
+      if (modKey && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        addViolation("window_blur");
+        return;
+      }
       if (modKey && e.key.toLowerCase() === "u") {
         e.preventDefault();
         return;
       }
       if (modKey && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        return;
+      }
+      if (e.altKey && e.key === "Tab") {
+        e.preventDefault();
+        return;
+      }
+      if (e.key === "Meta" || e.key === "OS") {
         e.preventDefault();
         return;
       }
@@ -265,6 +280,24 @@ function useLockdown({
       document.removeEventListener("contextmenu", handleContextMenu);
     };
   }, [enabled, addViolation, startCountdown, clearCountdown]);
+  useEffect(() => {
+    if (!enabled) return;
+    const interval = setInterval(() => {
+      if (!hasEnteredFullscreenRef.current) return;
+      if (graceRef.current) return;
+      if (autoSubmittedRef.current) return;
+      if (!document.hasFocus()) {
+        const now = Date.now();
+        if (now - lastFocusPollViolationRef.current < FOCUS_POLL_COOLDOWN_MS)
+          return;
+        if (now - lastFsExitRef.current < BLUR_SUPPRESS_AFTER_FS_EXIT_MS)
+          return;
+        lastFocusPollViolationRef.current = now;
+        addViolation("window_blur");
+      }
+    }, FOCUS_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [enabled, addViolation]);
   return {
     isFullscreen,
     isMobileDevice,

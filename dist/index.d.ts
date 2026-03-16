@@ -46,18 +46,22 @@ interface UseLockdownReturn {
  * INSTANT SUBMIT (cheating attempts — never accidental):
  *   copy, cut, paste, external drop, devtools shortcuts
  *
- * 2-STRIKE LIMIT (environmental — fullscreen exits only):
- *   Each fullscreen exit starts a 5-second wall-clock countdown to re-enter.
- *   Blur/visibility events during an active countdown are suppressed
- *   (they're a side-effect of being outside fullscreen, not separate offenses).
- *   After the 2nd fullscreen exit, the next exit (or countdown expiry)
- *   triggers instant auto-submit.
+ * 2-STRIKE LIMIT (any focus loss):
+ *   fullscreen_exit, window_blur (Alt+Tab, Win key, Ctrl+N), tab_switch
+ *   ALL burn a strike. After 2 strikes, the next violation auto-submits.
+ *   Fullscreen exits start a 5-second wall-clock countdown to re-enter.
+ *
+ * FOCUS POLLING HEARTBEAT (500ms):
+ *   document.hasFocus() is checked every 500ms as a safety net.
+ *   This catches OS-level actions (Win key, Alt+Tab, notifications)
+ *   that don't reliably fire browser blur/visibility events on Windows.
  *
  * The countdown uses wall-clock timestamps (Date.now()) so freezing
  * JS execution (e.g. via browser task manager) cannot buy extra time.
  *
  * Also blocked (no violation, just prevented):
- *   view source (Ctrl/Cmd+U), print (Ctrl/Cmd+P), context menu (right-click)
+ *   view source (Ctrl/Cmd+U), print (Ctrl/Cmd+P), context menu (right-click),
+ *   Ctrl/Cmd+N (new window), Alt+Tab, Meta/Win key
  *
  * Philosophy: brutally simple. Not Proctorio. Just honest guardrails.
  * If a student makes an honest mistake, the teacher can reset their access.
