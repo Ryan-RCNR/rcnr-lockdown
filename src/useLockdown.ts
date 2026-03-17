@@ -364,6 +364,14 @@ export function useLockdown({
         e.preventDefault();
         return;
       }
+      // Ctrl/Cmd+F (find) and Ctrl/Cmd+H (find & replace) — blocked silently
+      if (
+        modKey &&
+        (e.key.toLowerCase() === "f" || e.key.toLowerCase() === "h")
+      ) {
+        e.preventDefault();
+        return;
+      }
       // Alt+Tab — can't fully prevent OS-level switch, but record the attempt.
       // The actual app switch will also be caught by blur/focus polling.
       if (e.altKey && e.key === "Tab") {
@@ -382,6 +390,33 @@ export function useLockdown({
     // Block context menu (right-click)
     function handleContextMenu(e: MouseEvent) {
       e.preventDefault();
+    }
+
+    // Detect voice typing / dictation (Win+H, OS dictation, speech-to-text)
+    // The beforeinput event fires BEFORE the DOM changes, and its inputType
+    // reveals the source. Voice/dictation uses "insertFromDictation" or
+    // "insertReplacementText" depending on browser/OS. Block and flag.
+    function handleBeforeInput(e: Event) {
+      const inputEvent = e as InputEvent;
+      const type = inputEvent.inputType;
+      if (
+        type === "insertFromDictation" ||
+        type === "insertFromVoice" ||
+        // Some browsers report dictation as insertReplacementText
+        // but only flag it if it inserts a lot of text at once (>50 chars)
+        (type === "insertReplacementText" &&
+          inputEvent.data &&
+          inputEvent.data.length > 50)
+      ) {
+        e.preventDefault();
+        addViolation("voice_input");
+      }
+    }
+
+    // Detect Picture-in-Picture — student could float a video with notes
+    // above the fullscreen window
+    function handlePipEnter() {
+      addViolation("pip_detected");
     }
 
     // When the window regains focus, clear any active countdown.
@@ -406,6 +441,8 @@ export function useLockdown({
     document.addEventListener("dragover", handleDragOver);
     document.addEventListener("keydown", handleKeydown);
     document.addEventListener("contextmenu", handleContextMenu);
+    document.addEventListener("beforeinput", handleBeforeInput);
+    document.addEventListener("enterpictureinpicture", handlePipEnter, true);
 
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
@@ -421,6 +458,8 @@ export function useLockdown({
       document.removeEventListener("dragover", handleDragOver);
       document.removeEventListener("keydown", handleKeydown);
       document.removeEventListener("contextmenu", handleContextMenu);
+      document.removeEventListener("beforeinput", handleBeforeInput);
+      document.removeEventListener("enterpictureinpicture", handlePipEnter, true);
     };
   }, [enabled, addViolation, startCountdown, clearCountdown]);
 

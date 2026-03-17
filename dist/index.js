@@ -35,7 +35,9 @@ var INSTANT_SUBMIT_VIOLATIONS = /* @__PURE__ */ new Set([
   "cut_attempt",
   "drop_attempt",
   "devtools_attempt",
-  "extension_detected"
+  "extension_detected",
+  "voice_input",
+  "pip_detected"
 ]);
 
 // src/useLockdown.ts
@@ -268,6 +270,10 @@ function useLockdown({
         e.preventDefault();
         return;
       }
+      if (modKey && (e.key.toLowerCase() === "f" || e.key.toLowerCase() === "h")) {
+        e.preventDefault();
+        return;
+      }
       if (e.altKey && e.key === "Tab") {
         e.preventDefault();
         return;
@@ -279,6 +285,19 @@ function useLockdown({
     }
     function handleContextMenu(e) {
       e.preventDefault();
+    }
+    function handleBeforeInput(e) {
+      const inputEvent = e;
+      const type = inputEvent.inputType;
+      if (type === "insertFromDictation" || type === "insertFromVoice" || // Some browsers report dictation as insertReplacementText
+      // but only flag it if it inserts a lot of text at once (>50 chars)
+      type === "insertReplacementText" && inputEvent.data && inputEvent.data.length > 50) {
+        e.preventDefault();
+        addViolation("voice_input");
+      }
+    }
+    function handlePipEnter() {
+      addViolation("pip_detected");
     }
     function handleFocus() {
       if (countdownIntervalRef.current) {
@@ -298,6 +317,8 @@ function useLockdown({
     document.addEventListener("dragover", handleDragOver);
     document.addEventListener("keydown", handleKeydown);
     document.addEventListener("contextmenu", handleContextMenu);
+    document.addEventListener("beforeinput", handleBeforeInput);
+    document.addEventListener("enterpictureinpicture", handlePipEnter, true);
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -312,6 +333,8 @@ function useLockdown({
       document.removeEventListener("dragover", handleDragOver);
       document.removeEventListener("keydown", handleKeydown);
       document.removeEventListener("contextmenu", handleContextMenu);
+      document.removeEventListener("beforeinput", handleBeforeInput);
+      document.removeEventListener("enterpictureinpicture", handlePipEnter, true);
     };
   }, [enabled, addViolation, startCountdown, clearCountdown]);
   (0, import_react.useEffect)(() => {

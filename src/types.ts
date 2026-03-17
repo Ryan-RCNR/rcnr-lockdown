@@ -14,7 +14,9 @@ export type ViolationType =
   | "cut_attempt"
   | "drop_attempt"
   | "devtools_attempt"
-  | "extension_detected";
+  | "extension_detected"
+  | "voice_input"
+  | "pip_detected";
 
 /** Violations that trigger instant auto-submit (cheating attempts). */
 export const INSTANT_SUBMIT_VIOLATIONS = new Set<ViolationType>([
@@ -24,6 +26,8 @@ export const INSTANT_SUBMIT_VIOLATIONS = new Set<ViolationType>([
   "drop_attempt",
   "devtools_attempt",
   "extension_detected",
+  "voice_input",
+  "pip_detected",
 ]);
 
 /** Configuration for the lockdown hook. */
