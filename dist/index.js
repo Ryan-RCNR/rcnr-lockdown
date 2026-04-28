@@ -82,6 +82,7 @@ function useLockdown({
   const countdownStartRef = (0, import_react.useRef)(0);
   const autoSubmittedRef = (0, import_react.useRef)(false);
   const internalDragRef = (0, import_react.useRef)(false);
+  const internalClipboardRef = (0, import_react.useRef)(null);
   const hasEnteredFullscreenRef = (0, import_react.useRef)(false);
   const lastFocusPollViolationRef = (0, import_react.useRef)(0);
   const onAutoSubmitRef = (0, import_react.useRef)(onAutoSubmit);
@@ -216,17 +217,57 @@ function useLockdown({
         return;
       addViolation("window_blur");
     }
-    function handlePaste(e) {
-      e.preventDefault();
-      addViolation("paste_attempt");
+    function readSelectionText() {
+      const docSel = typeof window !== "undefined" ? window.getSelection() : null;
+      const docText = docSel ? docSel.toString() : "";
+      if (docText) return docText;
+      const active = document.activeElement;
+      if (active && (active.tagName === "TEXTAREA" || active.tagName === "INPUT") && typeof active.selectionStart === "number" && typeof active.selectionEnd === "number") {
+        return active.value.slice(active.selectionStart, active.selectionEnd);
+      }
+      return "";
+    }
+    function normalizeForCompare(s) {
+      return s.replace(/\s+/g, " ").trim();
     }
     function handleCopy(e) {
-      e.preventDefault();
-      addViolation("copy_attempt");
+      const text = readSelectionText();
+      if (text) {
+        internalClipboardRef.current = text;
+      }
     }
     function handleCut(e) {
+      const text = readSelectionText();
+      if (text) {
+        internalClipboardRef.current = text;
+      }
+    }
+    function handlePaste(e) {
+      const ce = e;
+      const stash = internalClipboardRef.current;
+      let pasted = "";
+      let clipboardReadable = true;
+      try {
+        if (!ce.clipboardData) {
+          clipboardReadable = false;
+        } else {
+          pasted = ce.clipboardData.getData("text") || "";
+          if (!pasted && stash) {
+            clipboardReadable = false;
+          }
+        }
+      } catch {
+        clipboardReadable = false;
+      }
+      if (clipboardReadable && pasted && stash && normalizeForCompare(pasted) === normalizeForCompare(stash)) {
+        return;
+      }
+      if (!clipboardReadable && stash) {
+        internalClipboardRef.current = null;
+        return;
+      }
       e.preventDefault();
-      addViolation("cut_attempt");
+      addViolation("paste_attempt");
     }
     function handleDragStart() {
       internalDragRef.current = true;
