@@ -31,7 +31,6 @@
  */
 
 import * as React from "react";
-import type { Violation } from "../types";
 import { ViolationLogPreview } from "./ViolationLogPreview";
 
 export type ResetAccessMode = "resume" | "restart";
@@ -48,8 +47,8 @@ export interface ResetAccessConfirmProps {
    *  that will also be deleted on Restart. Affects the body copy. */
   hasLaterUnits?: boolean;
   /** Violations preserved on the current unit. Shown via
-   *  <ViolationLogPreview>. */
-  violations?: ReadonlyArray<Pick<Violation, "type">>;
+   *  <ViolationLogPreview>. The component only reads `.type`. */
+  violations?: ReadonlyArray<{ type: string }>;
   /** Tab switch count on the current unit. */
   tabSwitchCount?: number;
   /** Whether a request is in flight — disables the confirm button. */

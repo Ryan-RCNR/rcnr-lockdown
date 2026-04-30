@@ -14,14 +14,13 @@
  */
 
 import * as React from "react";
-import type { Violation } from "../types";
 
 export interface ViolationLogPreviewProps {
-  /** All violations recorded for this draft / submission. May contain
-   *  any plain {type, timestamp} entries — both `Violation` (from
-   *  useLockdown) and the encrypted-JSON arrays returned by backend
-   *  endpoints have this shape. */
-  violations: ReadonlyArray<Pick<Violation, "type">>;
+  /** All violations recorded for this draft / submission. Accepts
+   *  both `Violation` from useLockdown (where `type` is a known
+   *  `ViolationType`) and backend-decoded arrays where `type` is an
+   *  arbitrary string. The component only reads `.type`. */
+  violations: ReadonlyArray<{ type: string }>;
   /** Tab switch count (separate field on most backend models). */
   tabSwitchCount?: number;
   /** Headline shown above the list. Default: "Lockdown activity". */

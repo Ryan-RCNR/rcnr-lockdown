@@ -163,8 +163,10 @@ interface ResetAccessConfirmProps {
      *  that will also be deleted on Restart. Affects the body copy. */
     hasLaterUnits?: boolean;
     /** Violations preserved on the current unit. Shown via
-     *  <ViolationLogPreview>. */
-    violations?: ReadonlyArray<Pick<Violation, "type">>;
+     *  <ViolationLogPreview>. The component only reads `.type`. */
+    violations?: ReadonlyArray<{
+        type: string;
+    }>;
     /** Tab switch count on the current unit. */
     tabSwitchCount?: number;
     /** Whether a request is in flight — disables the confirm button. */
@@ -194,11 +196,13 @@ declare function ResetAccessConfirm({ mode, studentName, unitLabel, hasLaterUnit
  */
 
 interface ViolationLogPreviewProps {
-    /** All violations recorded for this draft / submission. May contain
-     *  any plain {type, timestamp} entries — both `Violation` (from
-     *  useLockdown) and the encrypted-JSON arrays returned by backend
-     *  endpoints have this shape. */
-    violations: ReadonlyArray<Pick<Violation, "type">>;
+    /** All violations recorded for this draft / submission. Accepts
+     *  both `Violation` from useLockdown (where `type` is a known
+     *  `ViolationType`) and backend-decoded arrays where `type` is an
+     *  arbitrary string. The component only reads `.type`. */
+    violations: ReadonlyArray<{
+        type: string;
+    }>;
     /** Tab switch count (separate field on most backend models). */
     tabSwitchCount?: number;
     /** Headline shown above the list. Default: "Lockdown activity". */
