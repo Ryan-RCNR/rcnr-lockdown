@@ -1,7 +1,7 @@
 {
   "name": "@rcnr/lockdown",
-  "version": "1.4.0",
-  "description": "Shared fullscreen lockdown hook for RCNR student frontends",
+  "version": "1.5.0",
+  "description": "Shared fullscreen lockdown hook + Resume/Start Over UI for RCNR student frontends",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",

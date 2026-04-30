@@ -478,7 +478,190 @@ function useLockdown({
     enterFullscreen
   };
 }
+
+// src/components/ResumeBanner.tsx
+import { useEffect as useEffect2, useState as useState2 } from "react";
+import { jsx, jsxs } from "react/jsx-runtime";
+function ResumeBanner({
+  visible,
+  keystrokeCount = 0,
+  priorViolationCount = 0,
+  autoDismissMs = 1e4,
+  headline = "Your teacher let you back in.",
+  className = "",
+  onDismiss
+}) {
+  const [dismissed, setDismissed] = useState2(false);
+  useEffect2(() => {
+    if (!visible || dismissed || autoDismissMs <= 0) return;
+    const t = setTimeout(() => {
+      setDismissed(true);
+      onDismiss?.();
+    }, autoDismissMs);
+    return () => clearTimeout(t);
+  }, [visible, dismissed, autoDismissMs, onDismiss]);
+  useEffect2(() => {
+    if (!visible || dismissed) return;
+    if (keystrokeCount > 0) {
+      setDismissed(true);
+      onDismiss?.();
+    }
+  }, [visible, dismissed, keystrokeCount, onDismiss]);
+  if (!visible || dismissed) return null;
+  return /* @__PURE__ */ jsxs(
+    "div",
+    {
+      className: `px-4 py-3 bg-emerald-500/10 border-b border-emerald-500/30 flex items-center justify-between shrink-0 ${className}`,
+      role: "status",
+      "aria-live": "polite",
+      children: [
+        /* @__PURE__ */ jsxs("p", { className: "text-sm text-emerald-200", children: [
+          /* @__PURE__ */ jsx("span", { className: "font-semibold", children: headline }),
+          " ",
+          "Continue where you left off.",
+          priorViolationCount > 0 && /* @__PURE__ */ jsxs("span", { className: "text-fg-dim ml-2", children: [
+            "(",
+            priorViolationCount,
+            " violation",
+            priorViolationCount === 1 ? "" : "s",
+            " from your earlier session were preserved.)"
+          ] })
+        ] }),
+        /* @__PURE__ */ jsx(
+          "button",
+          {
+            type: "button",
+            onClick: () => {
+              setDismissed(true);
+              onDismiss?.();
+            },
+            className: "text-emerald-200/60 hover:text-emerald-200 text-sm shrink-0 ml-3",
+            "aria-label": "Dismiss banner",
+            children: "Dismiss"
+          }
+        )
+      ]
+    }
+  );
+}
+
+// src/components/ViolationLogPreview.tsx
+import { jsx as jsx2, jsxs as jsxs2 } from "react/jsx-runtime";
+function ViolationLogPreview({
+  violations,
+  tabSwitchCount = 0,
+  headline = "Lockdown activity",
+  className = ""
+}) {
+  const violationCount = violations.length;
+  if (tabSwitchCount === 0 && violationCount === 0) return null;
+  const latestType = violationCount > 0 ? violations[violationCount - 1]?.type ?? "unknown" : null;
+  return /* @__PURE__ */ jsxs2(
+    "div",
+    {
+      className: `p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 ${className}`,
+      children: [
+        /* @__PURE__ */ jsx2("p", { className: "text-xs font-semibold text-amber-300 uppercase tracking-wide mb-2", children: headline }),
+        /* @__PURE__ */ jsxs2("ul", { className: "text-xs text-fg-muted space-y-1", children: [
+          /* @__PURE__ */ jsxs2("li", { children: [
+            /* @__PURE__ */ jsx2("span", { className: "text-amber-200 font-medium", children: tabSwitchCount }),
+            " ",
+            "tab switch",
+            tabSwitchCount === 1 ? "" : "es"
+          ] }),
+          violationCount > 0 && /* @__PURE__ */ jsxs2("li", { children: [
+            /* @__PURE__ */ jsx2("span", { className: "text-amber-200 font-medium", children: violationCount }),
+            " ",
+            "logged violation",
+            violationCount === 1 ? "" : "s"
+          ] }),
+          latestType && /* @__PURE__ */ jsxs2("li", { className: "pt-1 mt-1 border-t border-amber-500/20", children: [
+            /* @__PURE__ */ jsx2("span", { className: "text-fg-dim", children: "Latest:" }),
+            " ",
+            /* @__PURE__ */ jsx2("span", { className: "text-fg-muted", children: latestType })
+          ] })
+        ] })
+      ]
+    }
+  );
+}
+
+// src/components/ResetAccessConfirm.tsx
+import { jsx as jsx3, jsxs as jsxs3 } from "react/jsx-runtime";
+function ResetAccessConfirm({
+  mode,
+  studentName,
+  unitLabel,
+  hasLaterUnits = false,
+  violations = [],
+  tabSwitchCount = 0,
+  submitting = false,
+  errorMessage = null,
+  onConfirm,
+  onCancel
+}) {
+  if (mode === null) return null;
+  const isResume = mode === "resume";
+  const heading = isResume ? `Let ${studentName} continue ${unitLabel}?` : `Reset ${studentName}'s ${unitLabel}?`;
+  const body = isResume ? "Their prior text and any lockdown violations are preserved. They'll rejoin with the same access code and pick up where they left off." : `This deletes their ${unitLabel}${hasLaterUnits ? " and any later units" : ""}. Earlier work is preserved. They'll rejoin with the same access code and start ${unitLabel} from scratch.`;
+  const confirmLabel = isResume ? "Resume student" : "Start over";
+  const confirmClasses = isResume ? "px-4 py-2 text-sm font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition-colors disabled:opacity-50" : "px-4 py-2 text-sm font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-500 transition-colors disabled:opacity-50";
+  return /* @__PURE__ */ jsx3(
+    "div",
+    {
+      className: "fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4",
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-labelledby": "reset-access-heading",
+      children: /* @__PURE__ */ jsxs3("div", { className: "rcnr-card-flat p-6 max-w-lg w-full", children: [
+        /* @__PURE__ */ jsx3(
+          "h2",
+          {
+            id: "reset-access-heading",
+            className: "text-lg font-semibold text-fg mb-2",
+            children: heading
+          }
+        ),
+        /* @__PURE__ */ jsx3("p", { className: "text-sm text-fg-muted mb-4", children: body }),
+        /* @__PURE__ */ jsx3(
+          ViolationLogPreview,
+          {
+            violations,
+            tabSwitchCount,
+            className: "mb-4"
+          }
+        ),
+        errorMessage && /* @__PURE__ */ jsx3("p", { className: "text-sm text-red-300 mb-3", children: errorMessage }),
+        /* @__PURE__ */ jsxs3("div", { className: "flex items-center justify-end gap-2 pt-2", children: [
+          /* @__PURE__ */ jsx3(
+            "button",
+            {
+              type: "button",
+              onClick: onCancel,
+              disabled: submitting,
+              className: "px-3 py-2 text-sm font-medium text-fg-muted rounded-lg hover:bg-brand/5 transition-colors disabled:opacity-50",
+              children: "Cancel"
+            }
+          ),
+          /* @__PURE__ */ jsx3(
+            "button",
+            {
+              type: "button",
+              onClick: onConfirm,
+              disabled: submitting,
+              className: confirmClasses,
+              children: submitting ? "Working..." : confirmLabel
+            }
+          )
+        ] })
+      ] })
+    }
+  );
+}
 export {
   INSTANT_SUBMIT_VIOLATIONS,
+  ResetAccessConfirm,
+  ResumeBanner,
+  ViolationLogPreview,
   useLockdown
 };

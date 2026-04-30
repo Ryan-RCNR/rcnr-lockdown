@@ -1,3 +1,5 @@
+import * as React from 'react';
+
 /** A recorded lockdown violation. */
 interface Violation {
     type: ViolationType;
@@ -69,4 +71,141 @@ interface UseLockdownReturn {
 
 declare function useLockdown({ enabled, gracePeriodMs, onAutoSubmit, onViolation, }: UseLockdownOptions): UseLockdownReturn;
 
-export { INSTANT_SUBMIT_VIOLATIONS, type UseLockdownOptions, type UseLockdownReturn, type Violation, type ViolationType, useLockdown };
+/**
+ * ResumeBanner — student-facing UI shown after a teacher hits Resume
+ * on a kicked / submitted student.
+ *
+ * Behavior:
+ *   - Renders an emerald-tinted banner above the writing surface.
+ *   - Auto-dismisses after `autoDismissMs` (default 10s) OR on the
+ *     first keystroke detected via the `keystrokeCount` prop —
+ *     whichever comes first.
+ *   - The student can also manually dismiss via the "Dismiss" button.
+ *
+ * Design goal: identical UX across every lockdown-enabled student
+ * frontend (Blue Book, Draft Coach, ProveIt, TestHub, ...). The
+ * banner copy and visual tone are deliberately uniform — students
+ * recognize the same "your teacher let you back in" affordance no
+ * matter which RCNR tool they're using.
+ *
+ * Usage:
+ *   <ResumeBanner
+ *     visible={resumedByTeacher}
+ *     keystrokeCount={keystrokeCount}
+ *     priorViolationCount={priorViolationCount}
+ *   />
+ */
+
+interface ResumeBannerProps {
+    /** Whether the banner should be shown (controlled by the consumer). */
+    visible: boolean;
+    /** Total keystrokes since the writing session started. The banner
+     *  auto-dismisses the first time this transitions from 0 to >0. */
+    keystrokeCount?: number;
+    /** Number of violations preserved from the prior session. If > 0,
+     *  the banner adds a parenthetical telling the student their
+     *  earlier violations were preserved. */
+    priorViolationCount?: number;
+    /** Auto-dismiss timeout in ms. Default 10_000. Pass 0 to disable. */
+    autoDismissMs?: number;
+    /** Optional override copy for the headline portion. */
+    headline?: string;
+    /** Optional className for the outer container — appended after the
+     *  default classes so consumers can tweak spacing or borders. */
+    className?: string;
+    /** Optional callback when the banner is dismissed (auto OR manual). */
+    onDismiss?: () => void;
+}
+declare function ResumeBanner({ visible, keystrokeCount, priorViolationCount, autoDismissMs, headline, className, onDismiss, }: ResumeBannerProps): React.JSX.Element | null;
+
+/**
+ * ResetAccessConfirm — teacher-facing modal shown before letting a
+ * student back into a session (Resume mode) or wiping their current
+ * submission (Restart / Start Over mode).
+ *
+ * Surfaces the lockdown activity inline (via ViolationLogPreview) so
+ * the teacher decides with full context. Robin's complaint on Blue
+ * Book (commit 73f0d3c) was that without violation visibility, you
+ * can't tell whether to Resume (kid had a glitch) or Start Over (kid
+ * copy-pasted and should restart). This modal solves that for every
+ * lockdown tool.
+ *
+ * Tool-agnostic: the consumer passes a `unitLabel` (e.g. "Draft 3",
+ * "exam", "quiz") and copy adapts. The endpoint call is the
+ * consumer's responsibility — this component only handles the
+ * decision UX.
+ *
+ * Usage:
+ *   <ResetAccessConfirm
+ *     mode={resetMode}
+ *     studentName={submission.student_name}
+ *     unitLabel={`Draft ${currentDraft.draft_number}`}
+ *     hasLaterUnits={drafts.length > current.draft_number}
+ *     violations={currentDraft.violation_log}
+ *     tabSwitchCount={currentDraft.tab_switch_count}
+ *     submitting={resetSubmitting}
+ *     errorMessage={resetError}
+ *     onConfirm={() => handleResetAccess(resetMode)}
+ *     onCancel={() => setResetMode(null)}
+ *   />
+ */
+
+type ResetAccessMode = "resume" | "restart";
+interface ResetAccessConfirmProps {
+    /** When non-null, the modal renders. Pass null to hide. */
+    mode: ResetAccessMode | null;
+    /** Display name of the student being reset. */
+    studentName: string;
+    /** Label for the unit being reset — e.g. "Draft 3", "exam", "quiz".
+     *  Appears in the modal heading + body. */
+    unitLabel: string;
+    /** Whether there are later units (e.g. drafts past the current one)
+     *  that will also be deleted on Restart. Affects the body copy. */
+    hasLaterUnits?: boolean;
+    /** Violations preserved on the current unit. Shown via
+     *  <ViolationLogPreview>. */
+    violations?: ReadonlyArray<Pick<Violation, "type">>;
+    /** Tab switch count on the current unit. */
+    tabSwitchCount?: number;
+    /** Whether a request is in flight — disables the confirm button. */
+    submitting?: boolean;
+    /** Error message from the most recent attempt. Shown inline. */
+    errorMessage?: string | null;
+    /** Called when the teacher confirms. */
+    onConfirm: () => void;
+    /** Called when the teacher cancels (X / Cancel / Esc). */
+    onCancel: () => void;
+}
+declare function ResetAccessConfirm({ mode, studentName, unitLabel, hasLaterUnits, violations, tabSwitchCount, submitting, errorMessage, onConfirm, onCancel, }: ResetAccessConfirmProps): React.JSX.Element | null;
+
+/**
+ * ViolationLogPreview — small inline summary of lockdown violations.
+ *
+ * Used inside the ResetAccessConfirm modal AND any teacher detail
+ * surface that wants a compact "what did the student do" callout.
+ *
+ * Renders an amber-tinted box with:
+ *   - Tab switch count (always shown)
+ *   - Total violation count (when > 0)
+ *   - The most recent violation type (when violations array is non-empty)
+ *
+ * Returns null when there's nothing to report (no tab switches AND
+ * no violations) so the consumer doesn't have to gate it.
+ */
+
+interface ViolationLogPreviewProps {
+    /** All violations recorded for this draft / submission. May contain
+     *  any plain {type, timestamp} entries — both `Violation` (from
+     *  useLockdown) and the encrypted-JSON arrays returned by backend
+     *  endpoints have this shape. */
+    violations: ReadonlyArray<Pick<Violation, "type">>;
+    /** Tab switch count (separate field on most backend models). */
+    tabSwitchCount?: number;
+    /** Headline shown above the list. Default: "Lockdown activity". */
+    headline?: string;
+    /** Optional className for the outer container. */
+    className?: string;
+}
+declare function ViolationLogPreview({ violations, tabSwitchCount, headline, className, }: ViolationLogPreviewProps): React.JSX.Element | null;
+
+export { INSTANT_SUBMIT_VIOLATIONS, ResetAccessConfirm, type ResetAccessConfirmProps, type ResetAccessMode, ResumeBanner, type ResumeBannerProps, type UseLockdownOptions, type UseLockdownReturn, type Violation, ViolationLogPreview, type ViolationLogPreviewProps, type ViolationType, useLockdown };
