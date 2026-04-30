@@ -51,6 +51,9 @@ export interface ResetAccessConfirmProps {
   violations?: ReadonlyArray<{ type: string }>;
   /** Tab switch count on the current unit. */
   tabSwitchCount?: number;
+  /** Optional mapper for raw violation types -> human labels.
+   *  Forwarded to <ViolationLogPreview>. */
+  formatViolationType?: (type: string) => string;
   /** Whether a request is in flight — disables the confirm button. */
   submitting?: boolean;
   /** Error message from the most recent attempt. Shown inline. */
@@ -68,6 +71,7 @@ export function ResetAccessConfirm({
   hasLaterUnits = false,
   violations = [],
   tabSwitchCount = 0,
+  formatViolationType,
   submitting = false,
   errorMessage = null,
   onConfirm,
@@ -111,6 +115,7 @@ export function ResetAccessConfirm({
         <ViolationLogPreview
           violations={violations}
           tabSwitchCount={tabSwitchCount}
+          formatType={formatViolationType}
           className="mb-4"
         />
 

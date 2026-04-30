@@ -169,6 +169,9 @@ interface ResetAccessConfirmProps {
     }>;
     /** Tab switch count on the current unit. */
     tabSwitchCount?: number;
+    /** Optional mapper for raw violation types -> human labels.
+     *  Forwarded to <ViolationLogPreview>. */
+    formatViolationType?: (type: string) => string;
     /** Whether a request is in flight — disables the confirm button. */
     submitting?: boolean;
     /** Error message from the most recent attempt. Shown inline. */
@@ -178,7 +181,7 @@ interface ResetAccessConfirmProps {
     /** Called when the teacher cancels (X / Cancel / Esc). */
     onCancel: () => void;
 }
-declare function ResetAccessConfirm({ mode, studentName, unitLabel, hasLaterUnits, violations, tabSwitchCount, submitting, errorMessage, onConfirm, onCancel, }: ResetAccessConfirmProps): React.JSX.Element | null;
+declare function ResetAccessConfirm({ mode, studentName, unitLabel, hasLaterUnits, violations, tabSwitchCount, formatViolationType, submitting, errorMessage, onConfirm, onCancel, }: ResetAccessConfirmProps): React.JSX.Element | null;
 
 /**
  * ViolationLogPreview — small inline summary of lockdown violations.
@@ -209,7 +212,10 @@ interface ViolationLogPreviewProps {
     headline?: string;
     /** Optional className for the outer container. */
     className?: string;
+    /** Optional mapper turning a raw violation type ("tab_switch") into
+     *  a human-readable label ("Tab Switch"). Defaults to identity. */
+    formatType?: (type: string) => string;
 }
-declare function ViolationLogPreview({ violations, tabSwitchCount, headline, className, }: ViolationLogPreviewProps): React.JSX.Element | null;
+declare function ViolationLogPreview({ violations, tabSwitchCount, headline, className, formatType, }: ViolationLogPreviewProps): React.JSX.Element | null;
 
 export { INSTANT_SUBMIT_VIOLATIONS, ResetAccessConfirm, type ResetAccessConfirmProps, type ResetAccessMode, ResumeBanner, type ResumeBannerProps, type UseLockdownOptions, type UseLockdownReturn, type Violation, ViolationLogPreview, type ViolationLogPreviewProps, type ViolationType, useLockdown };

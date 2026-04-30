@@ -27,6 +27,9 @@ export interface ViolationLogPreviewProps {
   headline?: string;
   /** Optional className for the outer container. */
   className?: string;
+  /** Optional mapper turning a raw violation type ("tab_switch") into
+   *  a human-readable label ("Tab Switch"). Defaults to identity. */
+  formatType?: (type: string) => string;
 }
 
 export function ViolationLogPreview({
@@ -34,12 +37,14 @@ export function ViolationLogPreview({
   tabSwitchCount = 0,
   headline = "Lockdown activity",
   className = "",
+  formatType = (t) => t,
 }: ViolationLogPreviewProps): React.JSX.Element | null {
   const violationCount = violations.length;
   if (tabSwitchCount === 0 && violationCount === 0) return null;
 
-  const latestType =
+  const latestRawType =
     violationCount > 0 ? violations[violationCount - 1]?.type ?? "unknown" : null;
+  const latestType = latestRawType !== null ? formatType(latestRawType) : null;
 
   return (
     <div

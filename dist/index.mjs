@@ -551,11 +551,13 @@ function ViolationLogPreview({
   violations,
   tabSwitchCount = 0,
   headline = "Lockdown activity",
-  className = ""
+  className = "",
+  formatType = (t) => t
 }) {
   const violationCount = violations.length;
   if (tabSwitchCount === 0 && violationCount === 0) return null;
-  const latestType = violationCount > 0 ? violations[violationCount - 1]?.type ?? "unknown" : null;
+  const latestRawType = violationCount > 0 ? violations[violationCount - 1]?.type ?? "unknown" : null;
+  const latestType = latestRawType !== null ? formatType(latestRawType) : null;
   return /* @__PURE__ */ jsxs2(
     "div",
     {
@@ -595,6 +597,7 @@ function ResetAccessConfirm({
   hasLaterUnits = false,
   violations = [],
   tabSwitchCount = 0,
+  formatViolationType,
   submitting = false,
   errorMessage = null,
   onConfirm,
@@ -628,6 +631,7 @@ function ResetAccessConfirm({
           {
             violations,
             tabSwitchCount,
+            formatType: formatViolationType,
             className: "mb-4"
           }
         ),
