@@ -110,13 +110,17 @@ interface ResumeBannerProps {
     autoDismissMs?: number;
     /** Optional override copy for the headline portion. */
     headline?: string;
+    /** Optional override copy for the body portion (after the headline,
+     *  before the violation parenthetical). When omitted, defaults to
+     *  the summative-tool wording "Continue where you left off." */
+    body?: string;
     /** Optional className for the outer container — appended after the
      *  default classes so consumers can tweak spacing or borders. */
     className?: string;
     /** Optional callback when the banner is dismissed (auto OR manual). */
     onDismiss?: () => void;
 }
-declare function ResumeBanner({ visible, keystrokeCount, priorViolationCount, autoDismissMs, headline, className, onDismiss, }: ResumeBannerProps): React.JSX.Element | null;
+declare function ResumeBanner({ visible, keystrokeCount, priorViolationCount, autoDismissMs, headline, body, className, onDismiss, }: ResumeBannerProps): React.JSX.Element | null;
 
 /**
  * ResetAccessConfirm — teacher-facing modal shown before letting a
@@ -176,12 +180,22 @@ interface ResetAccessConfirmProps {
     submitting?: boolean;
     /** Error message from the most recent attempt. Shown inline. */
     errorMessage?: string | null;
+    /** Optional copy overrides — let consumer tools speak in their own
+     *  voice. Bluebook (summative) keeps the defaults; Draft Coach
+     *  (formative / "the writing gym") passes coach-flavored copy.
+     *  Each accepts the studentName / unitLabel-substituted final string. */
+    resumeHeading?: string;
+    restartHeading?: string;
+    resumeBody?: string;
+    restartBody?: string;
+    resumeConfirmLabel?: string;
+    restartConfirmLabel?: string;
     /** Called when the teacher confirms. */
     onConfirm: () => void;
     /** Called when the teacher cancels (X / Cancel / Esc). */
     onCancel: () => void;
 }
-declare function ResetAccessConfirm({ mode, studentName, unitLabel, hasLaterUnits, violations, tabSwitchCount, formatViolationType, submitting, errorMessage, onConfirm, onCancel, }: ResetAccessConfirmProps): React.JSX.Element | null;
+declare function ResetAccessConfirm({ mode, studentName, unitLabel, hasLaterUnits, violations, tabSwitchCount, formatViolationType, submitting, errorMessage, resumeHeading, restartHeading, resumeBody, restartBody, resumeConfirmLabel, restartConfirmLabel, onConfirm, onCancel, }: ResetAccessConfirmProps): React.JSX.Element | null;
 
 /**
  * ViolationLogPreview — small inline summary of lockdown violations.

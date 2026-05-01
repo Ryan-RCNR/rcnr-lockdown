@@ -518,6 +518,7 @@ function ResumeBanner({
   priorViolationCount = 0,
   autoDismissMs = 1e4,
   headline = "Your teacher let you back in.",
+  body = "Continue where you left off.",
   className = "",
   onDismiss
 }) {
@@ -548,7 +549,7 @@ function ResumeBanner({
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { className: "text-sm text-emerald-200", children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "font-semibold", children: headline }),
           " ",
-          "Continue where you left off.",
+          body,
           priorViolationCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "text-fg-dim ml-2", children: [
             "(",
             priorViolationCount,
@@ -630,14 +631,20 @@ function ResetAccessConfirm({
   formatViolationType,
   submitting = false,
   errorMessage = null,
+  resumeHeading,
+  restartHeading,
+  resumeBody,
+  restartBody,
+  resumeConfirmLabel,
+  restartConfirmLabel,
   onConfirm,
   onCancel
 }) {
   if (mode === null) return null;
   const isResume = mode === "resume";
-  const heading = isResume ? `Let ${studentName} continue ${unitLabel}?` : `Reset ${studentName}'s ${unitLabel}?`;
-  const body = isResume ? "Their prior text and any lockdown violations are preserved. They'll rejoin with the same access code and pick up where they left off." : `This deletes their ${unitLabel}${hasLaterUnits ? " and any later units" : ""}. Earlier work is preserved. They'll rejoin with the same access code and start ${unitLabel} from scratch.`;
-  const confirmLabel = isResume ? "Resume student" : "Start over";
+  const heading = isResume ? resumeHeading ?? `Let ${studentName} continue ${unitLabel}?` : restartHeading ?? `Reset ${studentName}'s ${unitLabel}?`;
+  const body = isResume ? resumeBody ?? "Their prior text and any lockdown violations are preserved. They'll rejoin with the same access code and pick up where they left off." : restartBody ?? `This deletes their ${unitLabel}${hasLaterUnits ? " and any later units" : ""}. Earlier work is preserved. They'll rejoin with the same access code and start ${unitLabel} from scratch.`;
+  const confirmLabel = isResume ? resumeConfirmLabel ?? "Resume student" : restartConfirmLabel ?? "Start over";
   const confirmClasses = isResume ? "px-4 py-2 text-sm font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition-colors disabled:opacity-50" : "px-4 py-2 text-sm font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-500 transition-colors disabled:opacity-50";
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
     "div",

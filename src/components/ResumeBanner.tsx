@@ -40,6 +40,10 @@ export interface ResumeBannerProps {
   autoDismissMs?: number;
   /** Optional override copy for the headline portion. */
   headline?: string;
+  /** Optional override copy for the body portion (after the headline,
+   *  before the violation parenthetical). When omitted, defaults to
+   *  the summative-tool wording "Continue where you left off." */
+  body?: string;
   /** Optional className for the outer container — appended after the
    *  default classes so consumers can tweak spacing or borders. */
   className?: string;
@@ -53,6 +57,7 @@ export function ResumeBanner({
   priorViolationCount = 0,
   autoDismissMs = 10_000,
   headline = "Your teacher let you back in.",
+  body = "Continue where you left off.",
   className = "",
   onDismiss,
 }: ResumeBannerProps): React.JSX.Element | null {
@@ -86,8 +91,7 @@ export function ResumeBanner({
       aria-live="polite"
     >
       <p className="text-sm text-emerald-200">
-        <span className="font-semibold">{headline}</span>{" "}
-        Continue where you left off.
+        <span className="font-semibold">{headline}</span> {body}
         {priorViolationCount > 0 && (
           <span className="text-fg-dim ml-2">
             ({priorViolationCount} violation

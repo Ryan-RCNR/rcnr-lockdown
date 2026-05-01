@@ -1,6 +1,6 @@
 {
   "name": "@rcnr/lockdown",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "description": "Shared fullscreen lockdown hook + Resume/Start Over UI for RCNR student frontends",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

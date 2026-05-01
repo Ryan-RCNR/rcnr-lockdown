@@ -58,6 +58,16 @@ export interface ResetAccessConfirmProps {
   submitting?: boolean;
   /** Error message from the most recent attempt. Shown inline. */
   errorMessage?: string | null;
+  /** Optional copy overrides — let consumer tools speak in their own
+   *  voice. Bluebook (summative) keeps the defaults; Draft Coach
+   *  (formative / "the writing gym") passes coach-flavored copy.
+   *  Each accepts the studentName / unitLabel-substituted final string. */
+  resumeHeading?: string;
+  restartHeading?: string;
+  resumeBody?: string;
+  restartBody?: string;
+  resumeConfirmLabel?: string;
+  restartConfirmLabel?: string;
   /** Called when the teacher confirms. */
   onConfirm: () => void;
   /** Called when the teacher cancels (X / Cancel / Esc). */
@@ -74,6 +84,12 @@ export function ResetAccessConfirm({
   formatViolationType,
   submitting = false,
   errorMessage = null,
+  resumeHeading,
+  restartHeading,
+  resumeBody,
+  restartBody,
+  resumeConfirmLabel,
+  restartConfirmLabel,
   onConfirm,
   onCancel,
 }: ResetAccessConfirmProps): React.JSX.Element | null {
@@ -82,16 +98,20 @@ export function ResetAccessConfirm({
   const isResume = mode === "resume";
 
   const heading = isResume
-    ? `Let ${studentName} continue ${unitLabel}?`
-    : `Reset ${studentName}'s ${unitLabel}?`;
+    ? resumeHeading ?? `Let ${studentName} continue ${unitLabel}?`
+    : restartHeading ?? `Reset ${studentName}'s ${unitLabel}?`;
 
   const body = isResume
-    ? "Their prior text and any lockdown violations are preserved. They'll rejoin with the same access code and pick up where they left off."
-    : `This deletes their ${unitLabel}${
+    ? resumeBody ??
+      "Their prior text and any lockdown violations are preserved. They'll rejoin with the same access code and pick up where they left off."
+    : restartBody ??
+      `This deletes their ${unitLabel}${
         hasLaterUnits ? " and any later units" : ""
       }. Earlier work is preserved. They'll rejoin with the same access code and start ${unitLabel} from scratch.`;
 
-  const confirmLabel = isResume ? "Resume student" : "Start over";
+  const confirmLabel = isResume
+    ? resumeConfirmLabel ?? "Resume student"
+    : restartConfirmLabel ?? "Start over";
   const confirmClasses = isResume
     ? "px-4 py-2 text-sm font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition-colors disabled:opacity-50"
     : "px-4 py-2 text-sm font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-500 transition-colors disabled:opacity-50";
