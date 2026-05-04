@@ -49,7 +49,8 @@ var WARNING_DISPLAY_MS = 5e3;
 var DEVTOOLS_KEYS = ["I", "J", "C", "K"];
 var BLUR_SUPPRESS_AFTER_FS_EXIT_MS = 500;
 var FULLSCREEN_REENTRY_SECONDS = 5;
-var MAX_FULLSCREEN_EXITS = 2;
+var MAX_FULLSCREEN_EXITS = 3;
+var OS_POPUP_GRACE_MS = 1500;
 var FOCUS_POLL_INTERVAL_MS = 500;
 var FOCUS_POLL_COOLDOWN_MS = 2e3;
 function detectMobileDevice() {
@@ -88,6 +89,9 @@ function useLockdown({
   const internalClipboardRef = (0, import_react.useRef)(null);
   const hasEnteredFullscreenRef = (0, import_react.useRef)(false);
   const lastFocusPollViolationRef = (0, import_react.useRef)(0);
+  const pendingFsExitTimerRef = (0, import_react.useRef)(
+    null
+  );
   const onAutoSubmitRef = (0, import_react.useRef)(onAutoSubmit);
   (0, import_react.useEffect)(() => {
     onAutoSubmitRef.current = onAutoSubmit;
@@ -204,9 +208,24 @@ function useLockdown({
         hasEnteredFullscreenRef.current = true;
         setHasEnteredFullscreen(true);
         clearCountdown();
+        if (pendingFsExitTimerRef.current) {
+          clearTimeout(pendingFsExitTimerRef.current);
+          pendingFsExitTimerRef.current = null;
+          setWarning(
+            "An OS popup briefly took focus. This didn't count as a strike \u2014 please dismiss any popups quickly so it doesn't happen again."
+          );
+          setTimeout(() => setWarning(null), WARNING_DISPLAY_MS);
+        }
       } else if (!graceRef.current && hasEnteredFullscreenRef.current) {
         lastFsExitRef.current = Date.now();
-        addViolation("fullscreen_exit");
+        if (pendingFsExitTimerRef.current) {
+          clearTimeout(pendingFsExitTimerRef.current);
+        }
+        pendingFsExitTimerRef.current = setTimeout(() => {
+          pendingFsExitTimerRef.current = null;
+          if (document.fullscreenElement) return;
+          addViolation("fullscreen_exit");
+        }, OS_POPUP_GRACE_MS);
       }
     }
     function handleVisibilityChange() {
@@ -379,6 +398,10 @@ function useLockdown({
       document.removeEventListener("contextmenu", handleContextMenu);
       document.removeEventListener("beforeinput", handleBeforeInput);
       document.removeEventListener("enterpictureinpicture", handlePipEnter, true);
+      if (pendingFsExitTimerRef.current) {
+        clearTimeout(pendingFsExitTimerRef.current);
+        pendingFsExitTimerRef.current = null;
+      }
     };
   }, [enabled, addViolation, startCountdown, clearCountdown]);
   (0, import_react.useEffect)(() => {
@@ -491,6 +514,7 @@ function useLockdown({
           return;
         if (now - lastFsExitRef.current < BLUR_SUPPRESS_AFTER_FS_EXIT_MS)
           return;
+        if (pendingFsExitTimerRef.current) return;
         lastFocusPollViolationRef.current = now;
         addViolation("window_blur");
       }

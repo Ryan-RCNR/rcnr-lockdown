@@ -48,15 +48,25 @@ interface UseLockdownReturn {
  * INSTANT SUBMIT (cheating attempts — never accidental):
  *   copy, cut, paste, external drop, devtools shortcuts
  *
- * 2-STRIKE LIMIT (any focus loss):
+ * 3-STRIKE LIMIT (any focus loss):
  *   fullscreen_exit, window_blur (Alt+Tab, Win key, Ctrl+N), tab_switch
- *   ALL burn a strike. After 2 strikes, the next violation auto-submits.
+ *   ALL burn a strike. After 3 strikes, the next violation auto-submits.
  *   Fullscreen exits start a 5-second wall-clock countdown to re-enter.
+ *
+ * OS-INDUCED EXIT GRACE WINDOW (1500ms):
+ *   When fullscreen exits, a 1.5-second timer waits to see if focus
+ *   returns and we re-enter fullscreen. If yes, the exit was OS-induced
+ *   (Windows Update popup, Sticky Keys notification, antivirus prompt
+ *   that auto-dismissed) — show a non-counting warning instead of
+ *   burning a strike. If we're still out of fullscreen at 1500ms, the
+ *   exit was genuine — burn the strike normally.
  *
  * FOCUS POLLING HEARTBEAT (500ms):
  *   document.hasFocus() is checked every 500ms as a safety net.
  *   This catches OS-level actions (Win key, Alt+Tab, notifications)
  *   that don't reliably fire browser blur/visibility events on Windows.
+ *   Suppressed while a fullscreen-exit grace timer is pending so a
+ *   single OS event doesn't burn two strikes in parallel.
  *
  * The countdown uses wall-clock timestamps (Date.now()) so freezing
  * JS execution (e.g. via browser task manager) cannot buy extra time.

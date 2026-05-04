@@ -6,15 +6,25 @@
  * INSTANT SUBMIT (cheating attempts — never accidental):
  *   copy, cut, paste, external drop, devtools shortcuts
  *
- * 2-STRIKE LIMIT (any focus loss):
+ * 3-STRIKE LIMIT (any focus loss):
  *   fullscreen_exit, window_blur (Alt+Tab, Win key, Ctrl+N), tab_switch
- *   ALL burn a strike. After 2 strikes, the next violation auto-submits.
+ *   ALL burn a strike. After 3 strikes, the next violation auto-submits.
  *   Fullscreen exits start a 5-second wall-clock countdown to re-enter.
+ *
+ * OS-INDUCED EXIT GRACE WINDOW (1500ms):
+ *   When fullscreen exits, a 1.5-second timer waits to see if focus
+ *   returns and we re-enter fullscreen. If yes, the exit was OS-induced
+ *   (Windows Update popup, Sticky Keys notification, antivirus prompt
+ *   that auto-dismissed) — show a non-counting warning instead of
+ *   burning a strike. If we're still out of fullscreen at 1500ms, the
+ *   exit was genuine — burn the strike normally.
  *
  * FOCUS POLLING HEARTBEAT (500ms):
  *   document.hasFocus() is checked every 500ms as a safety net.
  *   This catches OS-level actions (Win key, Alt+Tab, notifications)
  *   that don't reliably fire browser blur/visibility events on Windows.
+ *   Suppressed while a fullscreen-exit grace timer is pending so a
+ *   single OS event doesn't burn two strikes in parallel.
  *
  * The countdown uses wall-clock timestamps (Date.now()) so freezing
  * JS execution (e.g. via browser task manager) cannot buy extra time.
@@ -43,8 +53,19 @@ const DEVTOOLS_KEYS = ["I", "J", "C", "K"]; // K = Firefox console
 const BLUR_SUPPRESS_AFTER_FS_EXIT_MS = 500;
 /** Seconds the student has to re-enter fullscreen before auto-submit. */
 const FULLSCREEN_REENTRY_SECONDS = 5;
-/** Maximum fullscreen exits before auto-submit. */
-const MAX_FULLSCREEN_EXITS = 2;
+/** Maximum fullscreen exits before auto-submit.
+ *  Raised from 2 → 3 in v1.6.0 after Kelley's 2026-05-04 report:
+ *  real classroom OS conditions (Windows Update popups, accessibility
+ *  shortcuts, antivirus prompts) are noisier than a dev machine, and
+ *  industry-standard lockdown tools (Lockdown Browser, ETS, Pearson
+ *  VUE) all use 3-strike models. */
+const MAX_FULLSCREEN_EXITS = 3;
+/** After a fullscreen-exit, wait this long before counting it as a strike.
+ *  If focus returns AND we're back in fullscreen within this window, the
+ *  exit was OS-induced (Update popup, accessibility notification, etc.) —
+ *  show a non-counting warning instead of burning a strike.
+ *  Added in v1.6.0 — see Kelley 2026-05-04 incident in BUGS-bluebook.md. */
+const OS_POPUP_GRACE_MS = 1500;
 /** How often (ms) to poll document.hasFocus() as a safety net. */
 const FOCUS_POLL_INTERVAL_MS = 500;
 /**
@@ -105,6 +126,13 @@ export function useLockdown({
   const hasEnteredFullscreenRef = useRef(false);
   /** Timestamp of last focus-loss detection from polling — prevents rapid-fire duplicates. */
   const lastFocusPollViolationRef = useRef(0);
+  /** Pending fullscreen-exit grace timer. While this is set, the focus poll
+   *  must not fire a window_blur — the grace timer owns the decision of
+   *  whether the exit was OS-induced (no strike) or genuine (burn strike).
+   *  Cleared when the grace window expires or fullscreen is re-entered. */
+  const pendingFsExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   // Stable refs for callbacks so event handlers never capture stale versions.
   const onAutoSubmitRef = useRef(onAutoSubmit);
@@ -263,10 +291,35 @@ export function useLockdown({
         hasEnteredFullscreenRef.current = true;
         setHasEnteredFullscreen(true);
         clearCountdown();
+        // If we re-entered fullscreen while a grace timer was pending, the exit
+        // was OS-induced (Update popup that auto-dismissed, Sticky Keys
+        // notification clicked through, etc.). Cancel the pending strike and
+        // show a non-counting warning so the student knows what happened.
+        if (pendingFsExitTimerRef.current) {
+          clearTimeout(pendingFsExitTimerRef.current);
+          pendingFsExitTimerRef.current = null;
+          setWarning(
+            "An OS popup briefly took focus. This didn't count as a strike — please dismiss any popups quickly so it doesn't happen again.",
+          );
+          setTimeout(() => setWarning(null), WARNING_DISPLAY_MS);
+        }
       } else if (!graceRef.current && hasEnteredFullscreenRef.current) {
         lastFsExitRef.current = Date.now();
-        addViolation("fullscreen_exit");
-        // Countdown is now started inside addViolation for all strike types
+        // Defer the violation. If focus comes back AND we re-enter fullscreen
+        // within OS_POPUP_GRACE_MS, the exit was OS-induced and the if-block
+        // above will cancel this timer + show a non-counting warning. If we
+        // don't re-enter in time, burn the strike normally.
+        if (pendingFsExitTimerRef.current) {
+          clearTimeout(pendingFsExitTimerRef.current);
+        }
+        pendingFsExitTimerRef.current = setTimeout(() => {
+          pendingFsExitTimerRef.current = null;
+          // Re-check current state; if we're back in fullscreen the if-block
+          // above already handled it (defensive — should be unreachable).
+          if (document.fullscreenElement) return;
+          addViolation("fullscreen_exit");
+          // Countdown is started inside addViolation for all strike types.
+        }, OS_POPUP_GRACE_MS);
       }
     }
 
@@ -553,6 +606,12 @@ export function useLockdown({
       document.removeEventListener("contextmenu", handleContextMenu);
       document.removeEventListener("beforeinput", handleBeforeInput);
       document.removeEventListener("enterpictureinpicture", handlePipEnter, true);
+      // Clear any pending fullscreen-exit grace timer so a hot-disable of
+      // lockdown doesn't leave a strike landing after the effect has been torn down.
+      if (pendingFsExitTimerRef.current) {
+        clearTimeout(pendingFsExitTimerRef.current);
+        pendingFsExitTimerRef.current = null;
+      }
     };
   }, [enabled, addViolation, startCountdown, clearCountdown]);
 
@@ -712,6 +771,11 @@ export function useLockdown({
         // Suppress if this is immediately after a fullscreen exit (blur handler covers it)
         if (now - lastFsExitRef.current < BLUR_SUPPRESS_AFTER_FS_EXIT_MS)
           return;
+        // Suppress while a fullscreen-exit grace timer is pending — the timer
+        // owns the decision of whether the exit was OS-induced (no strike) or
+        // genuine (burn one strike). Without this, the focus poll would burn
+        // a SECOND strike in parallel for the same OS event.
+        if (pendingFsExitTimerRef.current) return;
         lastFocusPollViolationRef.current = now;
         addViolation("window_blur");
       }
