@@ -193,7 +193,24 @@ export function useLockdown({
       // Don't accumulate violations after auto-submit has already fired
       if (autoSubmittedRef.current) return;
 
-      const v: Violation = { type, timestamp: Date.now() };
+      // Capture diagnostic context BEFORE state changes so the snapshot
+      // reflects the moment the violation actually fired. All reads are
+      // wrapped because some browser environments (sandboxed iframes,
+      // detached docs during teardown) throw on these properties.
+      let context: Violation["context"];
+      try {
+        context = {
+          visibilityState: typeof document !== "undefined" ? document.visibilityState : undefined,
+          hasFocus: typeof document !== "undefined" ? document.hasFocus() : undefined,
+          isFullscreen: typeof document !== "undefined" ? !!document.fullscreenElement : undefined,
+          strikesRemaining: undefined, // filled below for strike violations
+          fsExitGracePending: !!pendingFsExitTimerRef.current,
+        };
+      } catch {
+        context = undefined;
+      }
+
+      const v: Violation = { type, timestamp: Date.now(), context };
       setViolations((prev) => [...prev, v]);
       onViolationRef.current?.(v);
 
@@ -216,6 +233,15 @@ export function useLockdown({
         fullscreenExitCountRef.current += 1;
         const remaining = MAX_FULLSCREEN_EXITS - fullscreenExitCountRef.current;
         setStrikesRemaining(remaining);
+        // Backfill strikesRemaining into the violation's context so post-hoc
+        // analysis knows how close to auto-submit the student was at the
+        // moment this violation fired. Mutating the captured object is safe
+        // here — onViolation already saw the un-backfilled snapshot above,
+        // and any consumer reading from useLockdown's `violations` array
+        // sees the post-mutation version with full context.
+        if (v.context) {
+          v.context.strikesRemaining = remaining;
+        }
 
         if (remaining < 0) {
           // Out of strikes — instant submit, no countdown

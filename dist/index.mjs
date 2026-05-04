@@ -108,7 +108,20 @@ function useLockdown({
       if (graceRef.current) return;
       if (!hasEnteredFullscreenRef.current) return;
       if (autoSubmittedRef.current) return;
-      const v = { type, timestamp: Date.now() };
+      let context;
+      try {
+        context = {
+          visibilityState: typeof document !== "undefined" ? document.visibilityState : void 0,
+          hasFocus: typeof document !== "undefined" ? document.hasFocus() : void 0,
+          isFullscreen: typeof document !== "undefined" ? !!document.fullscreenElement : void 0,
+          strikesRemaining: void 0,
+          // filled below for strike violations
+          fsExitGracePending: !!pendingFsExitTimerRef.current
+        };
+      } catch {
+        context = void 0;
+      }
+      const v = { type, timestamp: Date.now(), context };
       setViolations((prev) => [...prev, v]);
       onViolationRef.current?.(v);
       if (INSTANT_SUBMIT_VIOLATIONS.has(type)) {
@@ -120,6 +133,9 @@ function useLockdown({
         fullscreenExitCountRef.current += 1;
         const remaining = MAX_FULLSCREEN_EXITS - fullscreenExitCountRef.current;
         setStrikesRemaining(remaining);
+        if (v.context) {
+          v.context.strikesRemaining = remaining;
+        }
         if (remaining < 0) {
           setWarning("Your work has been submitted.");
           triggerAutoSubmit();
